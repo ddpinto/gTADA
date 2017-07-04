@@ -12,10 +12,6 @@ llk0 <- function(pars){
         pi1 <- rep(exp(alpha0)/(1 + exp(alpha0)), dim(dD)[1])
 
         tllk <- sum(log(f1*pi1 + (1 - pi1)*f0))
-###lasso
-#        tllk <- tllk - pT*sum(abs(alpha0))
-#ridge
-#        tllk <- tllk - pT*sum((alpha0^2))
 
         return(-tllk)
     }

@@ -14,10 +14,6 @@ llk1 <- function(pars){
             exp0 <- exp(alphaIntercept + sum(alpha0*x))
             return(exp0/(1 + exp0))})
         tllk <- sum(log(f1*pi1 + (1 - pi1)*f0))
-###lasso
-#        tllk <- tllk - pT*sum(abs(alpha0))
-#ridge
-#        tllk <- tllk - pT*sum((alpha0^2))
 
         return(-tllk)
     }
