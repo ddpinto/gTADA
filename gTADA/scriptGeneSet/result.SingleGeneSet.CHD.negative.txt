@@ -1,0 +1,5 @@
+GO:0006810.txt lof_CHD_allN1213 damaging_CHD_allN1213 alpha0[2] -1.194 -3.657 -0.089 3072
+GO:0051234.txt lof_CHD_allN1213 damaging_CHD_allN1213 alpha0[2] -1.112 -3.383 -0.085 3118
+GO:1901564.txt lof_CHD_allN1213 damaging_CHD_allN1213 alpha0[2] -1.795 -4.42 -0.102 1643
+MGI203635.abnormal_synaptic_transmission.txt lof_CHD_allN1213 damaging_CHD_allN1213 alpha0[2] -1.854 -4.496 -0.023 417
+ens.txt lof_CHD_allN1213 damaging_CHD_allN1213 alpha0[2] -1.845 -3.528 -0.227 19126

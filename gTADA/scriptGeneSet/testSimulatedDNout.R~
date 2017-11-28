@@ -1,0 +1,21 @@
+dirFile <- "TestGeneSetDNmcmc4_April/"
+dirFile <- "TestGeneSetDNmcmc4_April2/"
+fileN <- dir(dirFile, "RData")
+
+
+ja = 1
+NK <- length(fileN) #10
+dOut <- NULL
+for (ja in 1:NK){
+    
+load(paste0(dirFile, fileN[ja]))
+
+sGeneSet0 <- sDenovoCC2[[2]][, 2]
+table(geneSet)
+
+bInter <- data.frame(sGeneSet0, geneSet)
+
+tt <- c(length(sGeneSet0[sGeneSet0 == 1]), length(geneSet[geneSet == 1]), length(sGeneSet0[geneSet == 1]))
+dOut <- rbind(dOut, tt)
+
+}

@@ -1,0 +1,562 @@
+args <- commandArgs(TRUE)
+ntrio <- as.numeric(args[1])
+
+gammaMeanDenovo <- as.numeric(args[2])
+gammaMeanDenovo2 <- as.numeric(args[3])
+alphaI <- as.numeric(args[4])
+alpha1 <- as.numeric(args[5])
+p11 <-    as.numeric(args[6])
+OUT_DIR <- as.character(args[7])
+RUN_TIME <- as.character(args[8])
+
+pi0 <- p11
+
+gammaMean=3
+gammaMean2=4
+
+#outDir = "/hpc/users/nguyet26/psychen/methods/extTADA/scripts"
+#load("TestDNandCC0025and02/TestArray.1000099.gammaMeanDN.4.gammaMeanDenovo.15.gammaMeanDN2.3.5.gammaMeanDenovo2.5.pi0.0.13.rhocC.0.0002161572.rhoCC2.0.000123642505820651.lowerHyperGamma.1.casecontrolAndDenovo.1classes.RData")
+.libPaths("~/InstallSoftware/Rlibs/")
+source("TADA/TADA.R")
+
+library("coda")
+library("rstan")
+citation("rstan")
+
+
+mu.frac <- c(0.074, 0.32)
+gamma.mean.dn <- c(20, 4.7)
+beta.dn <- c(1,1)
+gamma.mean.CC <- c(2.3, 1.00)
+beta.CC <- c(4.0, 1000)
+rho1 <- c(0.1, 0.5)
+nu1 <- c(200, 100)
+rho0 <- c(0.1, 0.5)
+nu0 <- c(200, 100)
+hyperpar <- as.array(rbind(gamma.mean.dn, beta.dn, gamma.mean.CC, beta.CC, rho1, nu1, rho0, nu0))
+l <- 100
+
+#data <- read.table(paste("../Re_annotate/Paper_Data/scz_data_April_2016_exac_noexac_oldDataBases.txt", sep = ""),
+                                        #                                     header = TRUE)
+
+#data <- read.table("/hpc/users/nguyet26/psychgen/methods/extTADA/data/scz_data_April_2016_exac_noexac_oldDataBases_and_allSilentFCPK.txt",                                                          header = TRUE)
+#data <- read.table("/hpc/users/nguyet26/psychgen/methods/extTADA/data/scz_data_Nov_2016_silent_Guipponi.txt", header = TRUE)
+#data <- data[sample(1:20000, 10000), ]
+
+data <- read.table("extTADA_DD.muRatio.1.annoType.damaging.Both.txt", header = TRUE, as.is = TRUE)
+
+ncase = 4954
+ncontrol <- 6239
+ncase <- ncase + 617
+ncontrol <- ncontrol + 617
+ncase <- 3157
+ncontrol <- 4672
+#ntrio = 2000
+N <- list(dn=ntrio, ca=ncase, cn= ncontrol)
+
+pList <- seq(0.02, 0.5, by = 0.02)
+pPredict <- NULL
+
+#source("TADA/TADA.R")
+###Re-write the simulation function
+
+simulator2 <- function(N, muAll, mu.frac, pi,
+                       alpha0, geneSet,
+                       gamma.mean.dn, beta.dn, gamma.mean.CC, beta.CC, rho1, nu1, rho0, nu0, tradeoff=FALSE) {
+      m <- dim(muAll)[1] # number of genes
+        K <- length(mu.frac) # number of mutational categories
+      exp0 <- alpha0[1]
+      for (i in 1:dim(geneSet)[2])
+          exp0 <- exp0 + alpha0[1+i]*geneSet[, i]
+      pp0 <- exp(exp0)/(1 + exp(exp0))
+      z0 <- sapply(pp0, function(x)
+          sample(0:1, 1, prob = c(1 - x, x)))
+
+
+      z = z0
+        gamma.dn <- array(1, dim=c(m,K))
+        gamma.CC <- array(1, dim=c(m,K))
+        q <- array(0, dim=c(m,K))
+        x <- array(0, dim=c(m,3*K))
+        k <- sum(z==1)
+        for (j in 1:K) {
+                mu <- muAll[, j]
+                    # sample de novo
+                    gamma.dn[z==1, j] <- rgamma(k, gamma.mean.dn[j]*beta.dn[j], beta.dn[j])
+                    col <- 3*(j-1)+1
+                    x[,col] <- rpois(m, 2 * mu * mu.frac[j] * gamma.dn[,j] * N$dn)
+
+                    # sample case-control
+                    gamma.CC[z==1, j] <- rgamma(k, gamma.mean.CC[j]*beta.CC[j], beta.CC[j])
+                    q[z==0, j] <- rgamma(m-k, rho0[j], nu0[j])
+                    if (tradeoff==FALSE) {
+                              q[z==1, j] <- rgamma(k, rho1[j], nu1[j])
+                    } else {
+                              q[z==1, j] <- mu[z==1] * mu.frac[j] / (delta[j] * gamma.CC[z==1, j])
+                    }
+                    x[,col+1] <- rpois(m, q[,j] * gamma.CC[,j] *N$ca)
+                    x[,col+2] <- rpois(m, q[,j] * N$cn)
+
+        }
+
+        sample.info <- cbind(mu, z, gamma.dn, gamma.CC, q, x)
+
+        return (list(sample=x, sample.info=sample.info))
+}
+################
+
+#nuCC <- 200; gammaMean = 2; gammaMean2 = 2; gammaMeanDenovo = 20; gammaMeanDenovo2 = 30
+betaPars <- c(6.83, -1.29, -0.58)
+N <- list(dn = ntrio, ca = ncase, cn = ncontrol)
+logBetaCC <- betaPars[1]*gammaMean^(betaPars[2]) + betaPars[3]
+betaCC <- exp(logBetaCC)
+
+
+logBetaCC2 <- betaPars[1]*gammaMean2^(betaPars[2]) + betaPars[3]
+betaCC2 <- exp(logBetaCC2)
+
+logBetaDenovo <- betaPars[1]*gammaMeanDenovo^(betaPars[2]) + betaPars[3]
+betaDenovo <- exp(logBetaDenovo)
+
+
+logBetaDenovo2 <- betaPars[1]*gammaMeanDenovo2^(betaPars[2]) + betaPars[3]
+betaDenovo2 <- exp(logBetaDenovo2)
+
+#betaCC <- betaCC2 <- betaDenovo <- betaDenovo2 <- 1
+
+mutLoF <- data$mut_lof
+mutMis3 <- data$mut_damaging
+
+
+###Get 25% of genes
+#p11 <- 0.11
+geneSetM <- sample(0:1, dim(data)[1], replace = TRUE, prob = c(1 - p11, p11))
+muRate <- data.frame(mutLoF, mutMis3)
+#dD <- DNdata <- data.frame(counts[, c(1, 4)])
+
+geneSet <- data.frame(geneSetM)
+
+
+alpha0 <- c(alphaI, alpha1)
+#alpha0 <- c(-3, 2.5)
+#gammaMeanDenovo = 20; gammaMeanDenovo2 = 20; gammaMean = 2; gammaMean2 = 3
+rhoCC=rho1[1]
+
+#pi0 = 0.1
+sDenovoCC2 <- simulator2(N = N, muAll = cbind(mutLoF, mutMis3),
+                         alpha0 = alpha0, geneSet = geneSet,
+                         mu.frac = c(1, 1), pi = pi0,
+                                                      gamma.mean.dn = c(gammaMeanDenovo, gammaMeanDenovo2),
+                                                      beta.dn = c(betaDenovo, betaDenovo2),
+                                                      gamma.mean.CC = c(gammaMean, gammaMean2),
+                                                      beta.CC = c(betaCC, betaCC2),
+                                                      rho1 = c(rhoCC*nu0[1], rhoCC*nu0[1]),
+                                                      nu1 = c(nu0[1], nu0[1]),
+                                                      rho0 = c(rhoCC*nu0[1], rhoCC*nu0[1]),
+                                                      nu0 = c(nu0[1], nu0[1]))
+
+sCountCC2 <- (sDenovoCC2$sample)
+
+counts <- cbind(sCountCC2[, 1], sCountCC2[, 2:6])
+
+sGeneSet0 <- sDenovoCC2[[2]][, 2]
+sGeneSet <- which(sGeneSet0 == 1)
+sGeneSet1 <- sample(sGeneSet, floor(dim(data)[1]*pi0/3))
+
+sGeneSet2 <- rep(0, dim(data)[1])
+sGeneSet2[sGeneSet1] <- 1
+
+b11 <- data.frame(sGeneSet0, geneSet)
+table(b11)
+
+save.image(paste0(OUT_DIR, "/Results.TestGeneSet.",
+                                  RUN_TIME,
+                 ".gammaMeanDN.", gammaMean, ".gammaMeanDenovo.", gammaMeanDenovo,
+                 ".gammaMeanDN2.", gammaMean2, ".gammaMeanDenovo2.", gammaMeanDenovo2,
+        ".pi0.",    pi0, ".",  abs(alphaI), ".", abs(alpha1), ".classes.RData"))
+
+#source("/sc/orga/scratch/nguyet26/Re_annotate/script/U_publishModel/extTADA.R")
+#source("/sc/orga/scratch/nguyet26/Re_annotate/scriptXB/U_publishModel/extTADAforMultiPopsNotDividePopsPrior.R")
+source("../scriptXB/U_publishModel/extTADAaddGeneSets.R")
+
+#geneSetM <- sample(0:1, dim(data)[1], replace = TRUE, prob = c(0.8, 0.2))
+muRate <- data.frame(mutLoF, mutMis3)
+dD <- DNdata <- data.frame(counts[, c(1, 4)])
+#geneSet <- data.frame(geneSetM)
+nFamily <- rep(ntrio, 2)
+nCol <- ncol(DNdata)
+nRow <- nrow(DNdata)
+nGeneSet <- ncol(geneSet)
+pars <- c(2, 30, 1, 1, rep(1, nGeneSet), 1)
+
+
+##log Likelihood for only alpha0
+source("../script/logLK0.R")
+source("../script/logLK.R")
+
+nGeneSet <- ncol(geneSet)
+nGeneSet = 0
+pars <- c(2, 30, 1, 1, rep(1, nGeneSet), 1)
+
+###This will test only for alpha0, so estimated pi will be similar to pi0
+system.time(returnValue0 <- optim(par = pars, fn = llk0,
+                         lower = c(rep(1, nCol), rep(0.8, nCol), rep(-10, nGeneSet + 1)),
+                         upper = c(rep(200, nCol), rep(200, nCol), rep(10, nGeneSet + 1)),
+                         control = list(maxit = 1000, reltol = 10^-12)))
+
+returnValue0$par
+tail(returnValue0$par, 1) -> aI
+pi1 <- exp(aI)/(1 + exp(aI))
+pi1
+length(sGeneSet)/dim(data)[1]
+tOut <- c(pi0, gammaMeanDenovo, gammaMeanDenovo2, alphaI, alpha1, pi1, returnValue0$par)
+tOut <- round(tOut, 3)
+tOut
+
+#geneSet <- data.frame(geneSetM, sGeneSet2)
+#geneSet <- data.frame(geneSetM)
+nFamily <- rep(ntrio, 2)
+nCol <- ncol(DNdata)
+nRow <- nrow(DNdata)
+nGeneSet <- ncol(geneSet)
+pars <- c(2, 30, 1, 1, rep(1, nGeneSet), 1)
+
+nGeneSet <- ncol(geneSet)
+#nGeneSet = 0
+pars <- c(2, 30, 1, 1, rep(1, nGeneSet), 1)
+
+length(sGeneSet)/dim(data)[1]
+system.time(returnValue1 <- optim(par = pars, fn = llk1,
+                         lower = c(rep(1, nCol), rep(0.8, nCol), rep(-10, nGeneSet + 1)),
+                         upper = c(rep(200, nCol), rep(200, nCol), rep(10, nGeneSet + 1)),
+                         control = list(maxit = 1000, reltol = 10^-10)))
+
+b11 <- tail(returnValue1$par, 3)
+
+exp0 <- exp(b11[3] + b11[1]*geneSet[, 1]) # + b11[2]*geneSet[, 2])
+pi2 <- exp0/(1 + exp0)
+length(sGeneSet)/dim(data)[1]
+
+quantile(pi2)
+
+
+###Start calculating BAYES FACTOR
+source("TADA/TADA.R")
+gammaDN <- returnValue0$par[1:2] #bA[hyperGammaMean]
+betaDN <- returnValue0$par[3:4] #bA[grep("hyperBetaDN", bAN)]
+pName <- returnValue0$par[5] #bAN[grep("pi0", bAN)]
+pi0A <- exp(returnValue0$par[5])  #bA[pName]
+pi0A <- pi0A/(1 + pi0A)
+
+bfDN <- matrix(0, nrow = dim(data)[1], ncol = length(gammaDN))
+for (i2 in 1:length(gammaDN))
+    bfDN[, i2] <- bayes.factor.denovo(x = dD[, i2], #mixDataKclasses$dataDN[, i2],
+                                      N = ntrio, #mixDataKclasses$Ndn[i2],
+                                      gamma.mean = gammaDN[i2], beta = betaDN[i2],
+                                      mu = muRate[, i2]) #mixDataKclasses$mutRate[, i2])
+bfAll <- apply(bfDN, 1, prod)
+pp <- pi0A*bfAll/((1 - pi0A) + pi0A*bfAll)
+zpp <- ifelse(pp > 0.5, 1, 0)
+table(zpp)
+dataOut <- data.frame(data[, 1], sGeneSet0, dD, pp, bfAll)
+
+fdr0 = 0.1 #0.1 #0.05
+#dataOut[pp > (1 - fdr0),]
+dim(dataOut[pp > (1 - fdr0),])
+
+dataOut1 <- dataOut
+dataOut1 <- dataOut1[order(-dataOut1$bfAll),]
+head(dataOut1)
+
+dataOut1[, 'qvalue'] <- Bayesian.FDR(dataOut1$bfAll, pi0 = 1 - pi0A)$FDR
+
+fdr0 = 0.1 #0.1 #0.05
+#dataOut1[dataOut1$qvalue < fdr0,]
+dim(dataOut1[dataOut1$qvalue < fdr0,])
+
+head(dataOut1, 15)
+d11 <- dataOut1[dataOut1$pp > 0.9,]
+
+tOut <- c(dim(d11)[1],
+          dim(d11[d11[, 2] == 1,])[1],
+    gammaMeanDenovo, gammaMeanDenovo2, betaDN,
+          returnValue0$par)
+
+###For new model
+gammaDN <- returnValue1$par[1:2] #bA[hyperGammaMean]
+betaDN <- returnValue1$par[3:4] #bA[grep("hyperBetaDN", bAN)]
+pName <- returnValue1$par[5:6] #bAN[grep("pi0", bAN)]
+pi0A <- exp(pName[2] + pName[1]*geneSet[, 1])  #bA[pName]
+pi0A <- pi0A/(1 + pi0A)
+
+bfDN <- matrix(0, nrow = dim(data)[1], ncol = length(gammaDN))
+for (i2 in 1:length(gammaDN))
+    bfDN[, i2] <- bayes.factor.denovo(x = dD[, i2], #mixDataKclasses$dataDN[, i2],
+                                      N = ntrio, #mixDataKclasses$Ndn[i2],
+                                      gamma.mean = gammaDN[i2], beta = betaDN[i2],
+                                      mu = muRate[, i2]) #mixDataKclasses$mutRate[, i2])
+bfAll <- apply(bfDN, 1, prod)
+pp <- pi0A*bfAll/((1 - pi0A) + pi0A*bfAll)
+zpp <- ifelse(pp > 0.5, 1, 0)
+table(zpp)
+dataOut <- data.frame(data[, 1],  sGeneSet0, dD, pp)
+
+fdr0 = 0.1 #0.1 #0.05
+#dataOut[pp > (1 - fdr0),]
+dim( dataOut[pp > (1 - fdr0),])
+
+d11 <- dataOut[pp > (1 - fdr0),]
+
+t11 <- c(dim(d11)[1],
+          dim(d11[d11[, 2] == 1,])[1],
+          returnValue1$par)
+
+
+
+
+tOut1 <- c(tOut, t11, length(sGeneSet)/dim(data)[1], p11)
+tOut1 <- round(tOut1, 4)
+
+
+write.table(t(tOut1), paste0(OUT_DIR, "/Results.TestGeneSet.",
+                                  RUN_TIME,
+                 ".gammaMeanDN.", gammaMean, ".gammaMeanDenovo.", gammaMeanDenovo,
+                 ".gammaMeanDN2.", gammaMean2, ".gammaMeanDenovo2.", gammaMeanDenovo2,
+        ".pi0.",    pi0, ".",  abs(alphaI), ".", abs(alpha1), ".classes.txt", sep = "") ,
+        quote = FALSE, col.names = FALSE, row.names = FALSE)
+
+
+
+
+
+####################################
+######################################
+sigmaPrior=2
+beta22=1
+modelDNdata <- list(NN = dim(dD)[1], #Gene numbers
+                                        K = 2, #Hypothesis numbers: should be default
+                                        NCdn = 2, #Number of de novo classes
+                                        Ndn = array(rep(ntrio, 2)), # Family numbers
+                                        dataDN = array(dD), # Denovo data
+                                        mutRate = array(muRate), # Mutation rates
+                                        betaPars = c(6.7771073, -1.7950864, -0.2168248), #Adjust beta's values: should be default
+                                        adjustHyperBeta = as.integer(0), ##1 if want to adjust beta, 0 if don't want to adjust beta
+                                        upperPi0 = 0.5, lowerPi0 = 0, lowerBeta = 0, ##Lower and upper limits of pi: should be default
+                                        lowerHyperGamma = 1, lowerGamma = 1, #Should be default
+                                        hyperBetaDN0 = array(c(5, 1)),
+                    hyper2GammaMeanDN = array(c(1, 1)),
+#                    hyper2BetaDN = array(c(0.01, 0.01))
+                  hyper2BetaDN = array(rep(beta22, 2)),
+                  Tgs = dim(geneSet)[2],
+                  Ngs = dim(geneSet)[2],
+                  geneSet = data.frame(geneSet),
+                  sigmaPrior = sigmaPrior
+                    ) ##Default beta values
+mixDataKclasses <- modelDNdata
+
+
+nCore <- nChain <- 1
+nIteration=2000
+nThin=floor(nIteration/1000)
+
+testIntegratedModel <- stan(model_code = DNextTADA,
+                        data = mixDataKclasses, iter = nIteration,
+                                                chains = nChain, cores = nCore,
+                                                thin = nThin,
+                        pars = c("alpha0", "hyperGammaMeanDN", "hyperBetaDN"))
+
+b1 <- as.data.frame(testIntegratedModel)
+
+
+
+save.image(paste0(OUT_DIR, "/Results.TestGeneSet.",
+                                  RUN_TIME,
+                 ".gammaMeanDN.", gammaMean, ".gammaMeanDenovo.", gammaMeanDenovo,
+                 ".gammaMeanDN2.", gammaMean2, ".gammaMeanDenovo2.", gammaMeanDenovo2,
+        ".pi0.",    pi0, ".",  abs(alphaI), ".", abs(alpha1), ".classes.RData"))
+
+
+bA <- apply(b1, 2, median)
+bAN <- names(bA)
+hyperGammaMean <- bAN[grep("hyperGammaMeanDN", bAN)]
+
+g1 <- apply(b1[, hyperGammaMean], 2, median)
+
+source("TADA/TADA.R")
+gammaDN <- bA[hyperGammaMean]
+betaDN <- bA[grep("hyperBetaDN", bAN)]
+
+e.Alpha1 <- bA["alpha0[1]"]
+e.Alpha2 <- bA["alpha0[2]"]
+
+pi0A <- exp(e.Alpha1 + e.Alpha2*geneSet[, 1])  #bA[pName]
+pi0A <- pi0A/(1 + pi0A)
+
+
+bfDN <- matrix(0, nrow = dim(data)[1], ncol = length(gammaDN))
+
+for (i2 in 1:length(gammaDN))
+    bfDN[, i2] <- bayes.factor.denovo(x = mixDataKclasses$dataDN[, i2],
+                                      N = mixDataKclasses$Ndn[i2],
+                                      gamma.mean = gammaDN[i2], beta = betaDN[i2],
+                                      mu = mixDataKclasses$mutRate[, i2])
+bfAll <- apply(bfDN, 1, prod)
+pp <- pi0A*bfAll/((1 - pi0A) + pi0A*bfAll)
+zpp <- ifelse(pp > 0.5, 1, 0)
+table(zpp)
+dataOut <- data.frame(sGeneSet0,  mixDataKclasses$dataDN, pp)
+
+d11 <- dataOut[dataOut$pp > 0.9,]
+
+eAlphaN <- bAN[grep("alpha", bAN)]
+eAlpha <- bA[eAlphaN]
+
+#load("TestGeneSetDNmcmc3/Results.TestGeneSet.1.gammaMeanDN.3.gammaMeanDenovo.12.gammaMeanDN2.4.gammaMeanDenovo2.2.pi0.0.001.2.0.5.classes.RData")
+
+t22 <- NULL
+for (tPP in c(0.5, 0.6, 0.7, 0.8, 0.9, 0.95)){
+    d11 <- dataOut[dataOut$pp >= tPP,]
+    t22 <- c(t22,  dim(d11)[1],
+          dim(d11[d11[, 1] == 1,])[1])
+
+}
+
+
+#t22 <- c( dim(d11)[1],
+ #         dim(d11[d11[, 1] == 1,])[1],
+  t22 <- c(t22,       gammaDN, betaDN, eAlpha)
+
+tOut2 <- c(tOut1, t22)
+
+write.table(t(tOut2), paste0(OUT_DIR, "/Results.TestGeneSet.",
+                                  RUN_TIME,
+                 ".gammaMeanDN.", gammaMean, ".gammaMeanDenovo.", gammaMeanDenovo,
+                 ".gammaMeanDN2.", gammaMean2, ".gammaMeanDenovo2.", gammaMeanDenovo2,
+        ".pi0.",    pi0, ".",  abs(alphaI), ".", abs(alpha1), ".classes.txt", sep = "") ,
+        quote = FALSE, col.names = FALSE, row.names = FALSE)
+
+save.image(paste0(OUT_DIR, "/Results.TestGeneSet.",
+                                  RUN_TIME,
+                 ".gammaMeanDN.", gammaMean, ".gammaMeanDenovo.", gammaMeanDenovo,
+                 ".gammaMeanDN2.", gammaMean2, ".gammaMeanDenovo2.", gammaMeanDenovo2,
+        ".pi0.",    pi0, ".",  abs(alphaI), ".", abs(alpha1), ".classes.RData"))
+
+
+##################
+#################ADD zero
+sigmaPrior=2
+beta22=1
+modelDNdata1 <- list(NN = dim(dD)[1], #Gene numbers
+                                        K = 2, #Hypothesis numbers: should be default
+                                        NCdn = 2, #Number of de novo classes
+                                        Ndn = array(rep(ntrio, 2)), # Family numbers
+                                        dataDN = array(dD), # Denovo data
+                                        mutRate = array(muRate), # Mutation rates
+                                        betaPars = c(6.7771073, -1.7950864, -0.2168248), #Adjust beta's values: should be default
+                                        adjustHyperBeta = as.integer(0), ##1 if want to adjust beta, 0 if don't want to adjust beta
+                                        upperPi0 = 0.5, lowerPi0 = 0, lowerBeta = 0, ##Lower and upper limits of pi: should be default
+                                        lowerHyperGamma = 1, lowerGamma = 1, #Should be default
+                                        hyperBetaDN0 = array(c(5, 1)),
+                    hyper2GammaMeanDN = array(c(1, 1)),
+#                    hyper2BetaDN = array(c(0.01, 0.01))
+                  hyper2BetaDN = array(rep(beta22, 2)),
+                  Tgs = 0, #dim(geneSet)[2],
+                  Ngs = dim(geneSet)[2],
+                  geneSet = data.frame(geneSet),
+                  sigmaPrior = sigmaPrior
+                    ) ##Default beta values
+mixDataKclasses1 <- modelDNdata1
+
+
+nCore <- nChain <- 1
+#nIteration=1000
+nThin=1
+if (nIteration > 1000)
+    nThin=floor(nIteration/1000)
+
+testIntegratedModel1 <- stan(model_code = DNextTADA,
+                        data = mixDataKclasses1, iter = nIteration,
+                                                chains = nChain, cores = nCore,
+                                                thin = nThin,
+                        pars = c("alpha0", "hyperGammaMeanDN", "hyperBetaDN"))
+
+b1A <- as.data.frame(testIntegratedModel1)
+
+
+
+save.image(paste0(OUT_DIR, "/Results.TestGeneSet.",
+                                  RUN_TIME,
+                 ".gammaMeanDN.", gammaMean, ".gammaMeanDenovo.", gammaMeanDenovo,
+                 ".gammaMeanDN2.", gammaMean2, ".gammaMeanDenovo2.", gammaMeanDenovo2,
+        ".pi0.",    pi0, ".",  abs(alphaI), ".", abs(alpha1), ".classes.RData"))
+
+
+bA <- apply(b1A, 2, median)
+bAN <- names(bA)
+hyperGammaMean <- bAN[grep("hyperGammaMeanDN", bAN)]
+
+g1 <- apply(b1A[, hyperGammaMean], 2, median)
+
+source("TADA/TADA.R")
+gammaDN <- bA[hyperGammaMean]
+betaDN <- bA[grep("hyperBetaDN", bAN)]
+
+e.Alpha1 <- bA["alpha0[1]"]
+#e.Alpha2 <- bA[grep("alpha0[2]", bAN)]
+
+pi0A <- exp(e.Alpha1)  #bA[pName]
+pi0A <- pi0A/(1 + pi0A)
+
+#pName <- bAN[grep("pi0", bAN)]
+#pi0A <- bA[pName]
+mean(pi0A)
+
+bfDN <- matrix(0, nrow = dim(data)[1], ncol = length(gammaDN))
+
+for (i2 in 1:length(gammaDN))
+    bfDN[, i2] <- bayes.factor.denovo(x = dD[, i2],
+                                      N = mixDataKclasses$Ndn[i2],
+                                      gamma.mean = gammaDN[i2], beta = betaDN[i2],
+                                      mu = mixDataKclasses$mutRate[, i2])
+bfAll <- apply(bfDN, 1, prod)
+pp <- pi0A*bfAll/((1 - pi0A) + pi0A*bfAll)
+zpp <- ifelse(pp > 0.5, 1, 0)
+table(zpp)
+dataOut <- data.frame(sGeneSet0,  mixDataKclasses$dataDN, pp)
+
+d11 <- dataOut[dataOut$pp > 0.9,]
+
+eAlphaN <- bAN[grep("alpha", bAN)]
+eAlpha <- bA[eAlphaN]
+
+t23 <- NULL
+for (tPP in c(0.5, 0.6, 0.7, 0.8, 0.9, 0.95)){
+    d11 <- dataOut[dataOut$pp >= tPP,]
+    t23 <- c(t23,  dim(d11)[1],
+          dim(d11[d11[, 1] == 1,])[1])
+
+}
+
+
+#t23 <- c( dim(d11)[1],
+ #         dim(d11[d11[, 1] == 1,])[1],
+  t23 <- c(t23,       gammaDN, betaDN, eAlpha)
+
+
+tOut3 <- c(tOut2, t23)
+
+tFinal <- c(alphaI, alpha1, gammaMeanDenovo, gammaMeanDenovo2, p11, t22, t23, returnValue1$par, returnValue0$par)
+tOut3 <- round(tFinal, 4)
+
+write.table(t(tOut3), paste0(OUT_DIR, "/Results.TestGeneSet.",
+                                  RUN_TIME,
+                 ".gammaMeanDN.", gammaMean, ".gammaMeanDenovo.", gammaMeanDenovo,
+                 ".gammaMeanDN2.", gammaMean2, ".gammaMeanDenovo2.", gammaMeanDenovo2,
+        ".pi0.",    pi0, ".",  abs(alphaI), ".", abs(alpha1), ".classes.txt", sep = "") ,
+        quote = FALSE, col.names = FALSE, row.names = FALSE)
+
+save.image(paste0(OUT_DIR, "/Results.TestGeneSet.",
+                                  RUN_TIME,
+                 ".gammaMeanDN.", gammaMean, ".gammaMeanDenovo.", gammaMeanDenovo,
+                 ".gammaMeanDN2.", gammaMean2, ".gammaMeanDenovo2.", gammaMeanDenovo2,
+        ".pi0.",    pi0, ".",  abs(alphaI), ".", abs(alpha1), ".classes.RData"))

@@ -1,0 +1,474 @@
+args <- commandArgs(TRUE)
+nUpdate <- as.numeric(args[1])
+nIteration <-   as.numeric(args[2])
+inDex <- as.character(args[3])
+nThin <- as.numeric(args[4])
+nChain <- as.numeric(args[5])
+annotationType <- as.character(args[6])
+annotationType2 <- as.character(args[7])
+outDir <- as.character(args[9])
+lowerHyperGamma <- as.numeric(args[10])
+annotationType3 <- as.character(args[11])
+resultDir <- as.character(args[12])
+nGroupDN <- as.numeric(args[13])
+nGroupCC <- as.numeric(args[14])
+nCore <-  nChain ###cores = chains
+adjustHyperBeta <- as.numeric(args[15])
+swapData <- as.numeric(args[16])
+sigmaPrior <- as.numeric(args[17])
+
+dn1 <- unlist(strsplit(annotationType, "_", fixed = TRUE))[1]
+dn2 <- unlist(strsplit(annotationType2, "_", fixed = TRUE))[1]
+dn3 <- unlist(strsplit(annotationType3, "_", fixed = TRUE))[1]
+
+print(annotationType)
+print(annotationType2)
+print(annotationType3)
+
+#.libPaths("/hpc/packages/minerva-common/R/3.3.1/lib64/R/library")
+.libPaths("/hpc/users/nguyet26/InstallSoftware/Rlibs")
+library("rstan")
+library("coda")
+
+#data <- read.table("/hpc/users/nguyet26/psychgen/methods/extTADA/data/scz_data_Sep_2016_exac_noexac_oldDataBases_and_allSilentFCPK.txt",
+ #                  header = TRUE)
+data <- read.table("/hpc/users/nguyet26/psychgen/methods/extTADA/Re_annotate/DenovoData/epi_id_dd_scz_data_Sep_2016_addNewID.txt",
+                   header = TRUE, as.is = TRUE, sep = ",")
+data <- read.table("/hpc/users/nguyet26/psychgen/methods/extTADA/Re_annotate/DenovoData/epi_id_dd_scz_data_Feb_2017_addNewID.txt",
+                   header = TRUE, as.is = TRUE, sep = ",")
+
+#dTemp <- (data[, grep("N13303", colnames(data))])
+#dTempN <- colnames(dTemp)
+#dTempN <- gsub("13303", "5122", dTempN)
+#colnames(dTemp) <- dTempN
+#data <- cbind(data, dTemp)
+#write.table(data1, "/hpc/users/nguyet26/psychgen/methods/extTADA/Re_annotate/DenovoData/epi_id_dd_scz_data_Feb_2017_addNewID.txt", quote = FALSE, row.names = FALSE, sep = ",")
+
+
+
+data2 <- read.table("~/psychgen/methods/extTADA/scripts/TADA/data/ASC_2231trios_1333trans_1601cases_5397controls.csv", sep = ",", header = TRUE)
+
+dirGeneSet <- "/hpc/users/nguyet26/psychgen/methods/extTADA/Re_annotate/PvalueGeneList/genesListAllPaper/"
+gS1 <- dir(dirGeneSet, ".txt$")
+gS1L <- sapply(gS1, function(x) length(readLines(paste0(dirGeneSet, x))))
+gS1L <- gS1L[gS1L>20]
+gS1L <- gS1L[gS1L<4000]
+length(gS1L)
+
+geneSetName <- names(gS1L)
+geneSetName <- geneSetName[grep("denovo|FDR|essentialGenes|listLoFtolerantEXAC|listMcRae2016.txt",
+                                geneSetName, ignore.case = TRUE, invert = TRUE)]
+geneSetName <- c("fmrp.txt", "constrained.txt")#, "essentialGenes.txt", "cahoy.txt", "psd95.txt", "mir137.txt", "synaptome.txt",                 "GO:0009653.txt"
+                 ##Heart Disease
+#                 )
+
+gAll <- data[, 1]
+geneSetM <- matrix(0, ncol = length(geneSetName), nrow = dim(data)[1])
+
+for (ii in 1:length(geneSetName)){
+    g1 <- readLines(paste0(dirGeneSet, geneSetName[ii]))
+    g11 <- pmatch(g1, gAll)
+    g11 <- g11[!is.na(g11)]
+    geneSetM[g11, ][, ii] <- 1
+ #   print(length(g11)) #table(g11)
+#    print(table(geneSetM[, ii]))
+
+    }
+
+#geneSetM <- cbind(geneSetM, geneSetM,
+ #                 sample(0:1, size = dim(geneSetM)[1], replace = TRUE, prob = c(0.95, 1 - 0.95)),
+  #                sample(0:1, size = dim(geneSetM)[1], replace = TRUE, prob = c(0.9, 1 - 0.9)),
+   #               sample(0:1, size = dim(geneSetM)[1], replace = TRUE, prob = c(0.8, 1 - 0.8))             )
+#geneSetName <- c(geneSetName, paste0(geneSetName, "1"), "RandomGene1_0.05", "RandomGene2_0.1",  "RandomGene2_0.2")
+
+
+t1 <- pmatch(data2[, 1], data[, 1])
+data3 <- data.frame(data2, index = t1)
+data3 <- data3[!is.na(data3$index),]
+
+data[, "dn_lof_AST_TADA"] <- rep(0, dim(data)[1])
+data[, "dn_lof_AST_TADA"][data3[, "index"]] <- data3[, "dn.LoF"]
+
+data[, "dn_damaging_AST_TADA"] <- rep(0, dim(data)[1])
+data[, "dn_damaging_AST_TADA"][data3[, "index"]] <- data3[, "dn.mis3"]
+
+data[, "dn_missense_AST_TADA"] <- rep(0, dim(data)[1])
+data[, "dn_missense_AST_TADA"][data3[, "index"]] <- data3[, "dn.mis3"]
+
+dim(data)
+
+
+#silentData <- read.table("~/psychgen/resources/genic_mutation_w_annotation/result_mutation_gene_silent.txt",  header = FALSE, as.is = TRUE)
+#colnames(silentData) <- c("Gene", "mut_silent")
+
+#data22Out <- merge(silentData, data, by = "Gene")
+
+#data <- data22Out
+
+print(annotationType)
+print(annotationType2)
+print(annotationType3)
+#.damaging_SingletonTransmittedDataAddCC_noexac
+dim(data)
+#data <- data[data$mut_lof > 0, ]
+t1 <- as.numeric(data$mut_lof)
+t1 <- t1[t1 > 0]
+data[data$mut_lof == 0, ]$mut_lof <- min(t1)/10
+#data <- data[data$mut_missense >0, ]
+t2 <- as.numeric(data$mut_missense)
+t2 <- t2[t2 > 0]
+data[data$mut_missense == 0, ]$mut_missense <- min(t2)/10
+dim(data)
+
+#data <- data[data$mut_missense >0, ]
+t2 <- as.numeric(data$mut_damaging)
+t2 <- t2[t2 > 0]
+data[data$mut_damaging == 0, ]$mut_damaging <- min(t2)/10
+#load("W_EPIandIDandDDdec2Prior/DN.adjustBeta.1.3.nI2000.nThin.1.index.17_13_Dec_09_2016.lof_DD.damaging_DD.nGroupDN.2.nGroupCC.2.adjustRatio.0.RData")
+##Silent
+#t3 <- as.numeric(data$mut_silentCFPK)
+#t3 <- t3[t3 > 0]
+#data[data$mut_silentCFPK == 0, ]$mut_silentCFPK <- min(t3)/10
+
+
+dim(data)
+
+
+ntrio <- 617 #Menachem
+ntrio <- ntrio + 14 #Girard
+ntrio <- ntrio + 105 #Gulsuner
+ntrio <- ntrio + 57 #McCarthy
+ntrio <- ntrio + 231 #Xu
+
+
+
+ntrioID <- 100 #deLight
+ntrioID <- ntrioID + 0 #Gilissen
+ntrioID <- ntrioID + 41 #Hamdan
+ntrioID <- ntrioID + 51 #Rauch
+ntrioID <- ntrioID + 820 ##Add Lei: 461 boys + 359 girls
+
+
+
+ntrioEPI <- 0 #Epi4k
+ntrioEPI <- ntrioEPI + 356 #EuroEPINOMICS-RES
+
+ntrioDD <- 4293 #http://biorxiv.org/content/biorxiv/early/2016/06/16/049056.full.pdf
+ntrioSCZ = 1077
+ntrioAST = 3985
+ntrioAST_SSC <- 2508
+ntrioAST_DeRubeis2014 <- 2270
+ntrioAST_TADA <- 2231
+
+
+if (annotationType == "lof_CHD_allN1575") {
+    ntrio <- 1575
+    adjustRatioMut <- sum(data$dn_silent_CHD_allN1575)/(sum(data[, 'mut_silent'])*2*ntrio) #1103/1204 #1133/(2*ntrioAST*sumSilent)
+}
+
+if (annotationType == "lof_CHD_allN1213") {
+    ntrio <- 1213
+    adjustRatioMut <- sum(data$dn_silent_CHD_allN1213)/(sum(data[, 'mut_silent'])*2*ntrio) #1103/1204 #1133/(2*ntrioAST*sumSilent)
+}
+
+
+if (annotationType == "lof_AST_allN13303") {
+    ntrio <- 5122 #13303
+    adjustRatioMut <- sum(data$dn_silent_AST_allN13303)/(sum(data[, 'mut_silent'])*2*ntrio) #1103/1204 #1133/(2*ntrioAST*sumSilent)
+}
+
+if (annotationType == "lof_AST_allN5122") {
+    ntrio <- 5122 #13303
+    adjustRatioMut <- sum(data$dn_silent_AST_allN13303)/(sum(data[, 'mut_silent'])*2*ntrio) #1103/1204 #1133/(2*ntrioAST*sumSilent)
+}
+
+
+if (annotationType == "lof_AST_TADA") {
+    ntrio <- ntrioAST_TADA
+    adjustRatioMut <- sum(data$dn_silent_AST_DeRubeis2014)/(sum(data[, 'mut_silent'])*2*ntrio) #1103/1204 #1133/(2*ntrioAST*sumSilent)
+}
+
+
+if (annotationType == "lof_AST_DeRubeis2014") {
+    ntrio <- ntrioAST_DeRubeis2014
+    adjustRatioMut <- sum(data$dn_silent_AST_DeRubeis2014)/(sum(data[, 'mut_silent'])*2*ntrio) #1103/1204 #1133/(2*ntrioAST*sumSilent)
+}
+
+
+if (annotationType == "lof_AST_SSC") {
+    ntrio <- ntrioAST_SSC
+    adjustRatioMut <- sum(data$dn_silent_AST_SSC)/(sum(data[, 'mut_silent'])*2*ntrio) #1103/1204 #1133/(2*ntrioAST*sumSilent)
+}
+
+
+if (annotationType == "lof_AST") {
+    ntrio <- ntrioAST
+    adjustRatioMut <- sum(data$dn_silent_AST)/(sum(data[, 'mut_silent'])*2*ntrioAST) #1103/1204 #1133/(2*ntrioAST*sumSilent)
+}
+    
+if (annotationType == "lof_EPI") {
+    ntrio <- ntrioEPI
+    adjustRatioMut <- sum(data$dn_silent_EPI)/(sum(data[, 'mut_silent'])*2*ntrio)
+}
+if (annotationType == "lof_ID") {
+    ntrio <- ntrioID
+    adjustRatioMut <-  sum(data$dn_silent_ID)/(sum(data[, 'mut_silent'])*2*ntrio) #(51 + 213)/(2*ntrioID*sumSilent)
+}
+if (annotationType == "lof_EPIandID")
+    ntrio <- ntrioEPI + ntrioID
+
+if (annotationType == "lof_DD"){
+    ntrio <- ntrioDD
+    adjustRatioMut <- sum(data$dn_silent_DD)/(sum(data[, 'mut_silent'])*2*ntrio) #1103/1204 #1133/(2*ntrioAST*sumSilent)
+}
+if (annotationType == "lof_SCZ") {
+    ntrio <- ntrioSCZ
+    adjustRatioMut <- 263/(2*ntrioSCZ*sum(data[, 'mut_silent']))
+}
+N <- list(dn=ntrio)
+data <- data[data$mut_lof != 0, ]
+dim(data)
+
+#counts <- cbind(sCountCC2[, 1], sCountCC2[, 2:6])
+
+
+if (dn1 == "disruptive")
+	dn1 <- "lof"
+
+allDNData <- data[, paste0("dn_", c(annotationType2, annotationType))]
+allMutData <- data[,paste0("mut_", c(dn2, dn1))]
+
+mutationLoF <- paste0("mut_", dn1)
+mutationMis3 <- paste0("mut_", dn2)
+mutationCFPK <- paste0("mut_", dn3)
+#dn1 <- paste(dn1, "_noexac", sep = "")
+#dn2 <- paste(dn2, "_noexac", sep = "")
+
+
+print(dn1)
+head(data, 2)
+dnLoF <- paste("dn_", annotationType, sep = "")
+#mutationLoF <- paste("mut_", dn1, sep = "")
+
+
+#length(protectLoF[protectLoF < 1])/length(y.case.lof)
+
+yLoF <- data[, dnLoF]
+mutLoF <- data[, mutationLoF]
+
+
+dnMis3 <- paste("dn_",  annotationType2, sep = "")
+#mutationMis3 <- paste("mut_", dn2, sep = "")
+
+yMis3 <- data[, dnMis3]
+mutMis3 <- data[, mutationMis3]
+
+##Silent
+
+dnCFPK <- paste("dn_",  annotationType3, sep = "")
+
+yCFPK <- data[, dnCFPK]
+mutCFPK <- data[, mutationCFPK]
+
+message("Number of categories: ", nGroupDN, " DN and ", nGroupCC, " CC")
+
+adjustRatioMut <- 1 #0.8719 #1
+
+allMutData <- adjustRatioMut*allMutData
+#mutRateArray <-  adjustRatioMut*cbind(mutCFPK, mutMis3, mutLoF)
+#dataDNArray <-  as.matrix(cbind(yCFPK, yMis3, yLoF))
+
+
+lDN <- ifelse(nGroupDN == 3, 1,
+              ifelse(nGroupDN == 2, 2, 3))
+lCC <- ifelse(nGroupCC == 3, 1,
+              ifelse(nGroupCC == 2, 2, 3))
+
+swapColumn <- function(x, c1 = 2, c2 = 3){
+    tempC <- x[, c1]
+    x[, c1] <- x[, c2]
+    x[, c2] <- tempC
+    return(x)
+}
+
+if (swapData == 1){
+    dataDNArray <- swapColumn(dataDNArray)
+    mutRateArray<- swapColumn(mutRateArray)
+    
+}
+    
+
+adjustHyperBeta0 <- 0
+adjustHyperBeta0 <- adjustHyperBeta
+
+beta22 <- 0.05
+
+###Remove not sig gene sets
+p1 <- NULL
+y <- rowSums(allDNData)
+for (i in 1:dim(geneSetM)[2]){
+    z <- geneSetM[, i]
+    a1 <- glm(z ~ y)
+    p1[i] <- (summary(a1)$coefficients)[2, 4]
+    p1[i] <- ifelse(is.na(p1[i]), 1, p1[i])
+}
+
+colnames(geneSetM) <- geneSetName
+geneSetNameN <- geneSetName #geneSetName[p1 < 0.01]
+geneSetMN <-    geneSetM[, geneSetNameN]
+
+
+modelDNdata <- list(NN = dim(allDNData)[1], #Gene numbers
+                                        K = 2, #Hypothesis numbers: should be default
+                                        NCdn = 2, #Number of de novo classes
+                                        Ndn = array(rep(N$dn, 2)), # Family numbers
+                                        dataDN = array(allDNData), # Denovo data
+                                        mutRate = array(allMutData), # Mutation rates
+                                        betaPars = c(6.7771073, -1.7950864, -0.2168248), #Adjust beta's values: should be default
+                                        adjustHyperBeta = as.integer(0), ##1 if want to adjust beta, 0 if don't want to adjust beta
+                                        upperPi0 = 0.5, lowerPi0 = 0, lowerBeta = 0, ##Lower and upper limits of pi: should be default
+                                        lowerHyperGamma = 1, lowerGamma = 1, #Should be default
+                                        hyperBetaDN0 = array(c(5, 1)),
+                    hyper2GammaMeanDN = array(c(1, 1)),
+#                    hyper2BetaDN = array(c(0.01, 0.01))
+                  hyper2BetaDN = array(rep(beta22, 2)),
+                  Tgs = dim(geneSetMN)[2],
+                  Ngs = dim(geneSetMN)[2],
+                  geneSet = data.frame(geneSetMN),
+                  sigmaPrior = sigmaPrior
+                    ) ##Default beta values
+mixDataKclasses <- modelDNdata
+
+nCore <- nChain
+#source("U_publishModel/extTADA.R")
+#source("U_publishModel/extTADAforMultiPopsNotDividePops.R")
+#source("U_publishModel/extTADAforMultiPopsNotDividePopsPrior.R")
+#load("W_EPIandIDandDDdec2Prior1/DN.adjustBeta.1.3.nI20000.nThin.1.index.23_51_Dec_15_2016.lof_AST_SSC.missense_AST_SSC.nGroupDN.2.nGroupCC.2.adjustRatio.1.0.05.RData")
+source("U_publishModel/extTADAaddGeneSets.R")
+#source("U_publishModel/extTADAaddGeneSets_LaplacePrior.R")
+#source("U_publishModel/extTADAaddGeneSetsPenalizedAlpha.R")
+#source("U_publishModel/extTADAaddGeneSetsPenalizedAlphaUseSTAN_1.R")
+citation("rstan")
+testIntegratedModel <- stan(model_code = DNextTADA,
+                        data = mixDataKclasses, iter = nIteration,
+                                                chains = nChain, cores = nCore,
+                                                thin = nThin, pars = c('alpha0', 'hyperGammaMeanDN', 'hyperBetaDN'))
+b1 <- as.data.frame(testIntegratedModel)
+tempLog <- c(annotationType, annotationType2,
+                     sigmaPrior, round(median(b1[, 'lp__']), 3))
+
+#        outLog[[ja]] <- tempLog
+
+
+save.image(paste0(resultDir, "/DN.adjustBeta.", adjustHyperBeta, ".",
+                         nChain, ".nI", nIteration, ".nThin.",
+        nThin, ".index.", inDex, ".", annotationType, ".", annotationType2, ".nGroupDN.", nGroupDN,
+        ".nGroupCC.", nGroupCC, ".adjustRatio.", round(adjustRatioMut, 2), ".", beta22, ".sigmaPrior.", sigmaPrior, 
+        ".RData"))
+
+
+write.table(t(tempLog), paste0(resultDir, "/LogLK.adjustBeta.", adjustHyperBeta, ".",
+                         nChain, ".nI", nIteration, ".nThin.",
+        nThin, ".index.", inDex, ".", annotationType, ".", annotationType2, ".nGroupDN.", nGroupDN,
+        ".nGroupCC.", nGroupCC, ".adjustRatio.", round(adjustRatioMut, 2), ".", beta22, ".sigmaPrior.", sigmaPrior, 
+        ".text"), row.names = FALSE, quote = FALSE, col.names= FALSE)
+
+
+b1 <- as.data.frame(testIntegratedModel)
+bMCMC <- mcmc(b1)
+bHPD <-  HPDinterval(bMCMC)
+medianHPD <- NULL
+
+
+llk1 <- function(pars){
+        hyperGammaMean <- pars[1:nCol]
+        hyperBeta <- pars[(nCol + 1):(2*nCol)]
+        alpha0 <- pars[(2*nCol+1):(2*nCol + nGeneSet)]
+        alphaIntercept <- tail(pars, 1)
+        f0 <- f1 <- 1
+        for (j in 1:nCol){
+            f0 <- f0*dpois(dD[, j], 2*nFamily[j]*muRate[, j])
+            f1<- f1*dnbinom(dD[, j], hyperGammaMean[j]*hyperBeta[j], hyperBeta[j]/(hyperBeta[j] + 2*nFamily[j]*muRate[, j]))
+            }
+        pi1 <- apply(geneSet, 1, function(x){
+            #pi1 = exp(geneSet)/(1 + exp(geneSet))
+            exp0 <- exp(alphaIntercept + sum(alpha0*x))
+            return(exp0/(1 + exp0))})
+        tllk <- sum(log(f1*pi1 + (1 - pi1)*f0))
+###lasso
+#        tllk <- tllk - pT*sum(abs(alpha0))
+#ridge 
+#        tllk <- tllk - pT*sum((alpha0^2))
+
+        return(-tllk)
+    }
+
+#load("W_AddGeneSetKF1/DN.adjustBeta.1.1.nI1000.nThin.1.index.16_35_Mar_02_2017.lof_DD.missense_DD.nGroupDN.2.nGroupCC.2.adjustRatio.1.0.05.sigmaPrior.0.25kF.1.RData")
+
+b1 <- as.data.frame(testIntegratedModel)
+nameAlpha <- colnames(b1)
+nameAlpha <- nameAlpha[grep("alpha0", nameAlpha)]
+
+balpha0 <- t(apply(b1[, nameAlpha], 2, function(x) quantile(x, c(0.025, 0.5, 0.975))))
+
+        ###########Calculate logLK
+        exp0 <- balpha0[1, 2]
+        for (iG1 in 1:dim(geneSetM)[2]){
+            exp0 <- exp0 + balpha0[iG1 + 1, 2]*geneSetM[, iG1]
+                    }
+        pE0 <- exp(exp0)/(1 + exp(exp0))
+        b1E <- apply(b1, 2, median)
+        gM <- b1E[grep("hyperGammaMeanDN", names(b1E))]
+        bM <- b1E[grep("hyperBetaDN", names(b1E))]
+
+nFamily = mixDataKclasses$Ndn
+        muRate <- allMutData[sK2, ] #mixDataKclasses$mutRate
+        geneSet = geneSetM[sK2, ]
+        nCol = length(gM)
+        nGeneSet = dim(geneSetM)[2]
+        dD <- allDNData[sK2, ] #mixDataKclasses$dataDN
+
+
+        llkE <- llk1(pars = c(gM, bM, balpha0[, 2][-1], balpha0[1,2]))
+
+
+
+tempLog <- c(tempLog, round(-llkE, 3))
+
+write.table(t(tempLog), paste0(resultDir, "/LogLK.adjustBeta.", adjustHyperBeta, ".",
+                         nChain, ".nI", nIteration, ".nThin.",
+        nThin, ".index.", inDex, ".", annotationType, ".", annotationType2, ".nGroupDN.", nGroupDN,
+        ".nGroupCC.", nGroupCC, ".adjustRatio.", round(adjustRatioMut, 2), ".", beta22,
+        ".sigmaPrior.", sigmaPrior,
+        ".kF.", kF, 
+        ".text"), row.names = FALSE, quote = FALSE, col.names= FALSE)
+
+
+
+for (ii in 1:dim(bHPD)[1]){
+    t1 <- b1[, ii]
+
+    t2 <- t1[(t1>=bHPD[ii, 1]) & (t1<=bHPD[ii, 2])]
+
+    medianHPD[ii] <- mean(t2)
+
+     }
+
+names(medianHPD) <- colnames(b1)
+
+t3 <- c(medianHPD)
+
+write.table(t(t3), paste0(resultDir, "/MCMC.", ntrio,
+                         nChain, ".nIteration", nIteration, ".nThin.", 
+        nThin, ".index.", inDex, ".adjustHyperBeta.", adjustHyperBeta,
+        ".", annotationType, ".", annotationType2, ".nGroup.", nGroupDN,
+        ".nGroupCC.", nGroupCC, ".sigmaPrior.", sigmaPrior,
+        ".notChangeDNgammaPrior.txt"),
+         col.names = FALSE, quote= FALSE, row.names = FALSE)
+
+save.image(paste0(resultDir, "/DN.adjustBeta.", adjustHyperBeta, ".",
+                         nChain, ".nI", nIteration, ".nThin.",
+        nThin, ".index.", inDex, ".", annotationType, ".", annotationType2, ".nGroupDN.", nGroupDN,
+        ".nGroupCC.", nGroupCC, ".adjustRatio.", round(adjustRatioMut, 2), ".", beta22, ".sigmaPrior.", sigmaPrior, 
+        ".RData"))
+
