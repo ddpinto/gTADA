@@ -1,6 +1,0 @@
-##Input: a list of gene sets
-###Data
-
-chooseGeneSet <- function(data){
-
-}
