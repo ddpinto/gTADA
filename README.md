@@ -15,4 +15,4 @@ To run this package, packages below should be installed:
 
  . *locfit* (https://cran.r-project.org/web/packages/locfit/index.html)
 
-To run the package, please follow this: [[./example/test_gTADA.R]]
+To run the package, please follow an example inside: /example/test_gTADA.R
