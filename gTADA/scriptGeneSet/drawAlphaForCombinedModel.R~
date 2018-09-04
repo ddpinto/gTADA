@@ -1,9 +1,0 @@
- .libPaths("~/InstallSoftware/Rlibs/")
-library("rstan")
-dirFile <- "W_AddGeneSetKF6_NormalPrior/"
- fileN <- dir(dirFile, "RData")
-fileN
-nameAn <- "damaging" #"missense" #
-fileN <- fileN[grep(nameAn, fileN)]
-fileN <- fileN[grep("sigmaPrior.3.2kF.5", fileN)]
-fileN <- fileN[grep("10000", fileN)]

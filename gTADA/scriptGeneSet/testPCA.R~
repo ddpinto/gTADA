@@ -1,2 +1,0 @@
-NN = 100
-x1 <- sample(1:NN, NN, replace = TRUE)

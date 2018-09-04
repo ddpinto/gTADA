@@ -1,7 +1,0 @@
-DN.adjustBeta.1.3.nI10000.nThin.1.index.14_33_Apr_17_2017.lof_AST_TADA.damaging_AST_TADA.nGroupDN.2.nGroupCC.2.adjustRatio.1.0.05.sigmaPrior.3.2kF.1.RData
-DN.adjustBeta.1.3.nI10000.nThin.1.index.14_33_Apr_17_2017.lof_AST_allN5122.damaging_AST_allN5122.nGroupDN.2.nGroupCC.2.adjustRatio.1.0.05.sigmaPrior.3.2kF.1.RData
-DN.adjustBeta.1.3.nI10000.nThin.1.index.14_33_Apr_17_2017.lof_CHD_allN1213.damaging_CHD_allN1213.nGroupDN.2.nGroupCC.2.adjustRatio.1.0.05.sigmaPrior.3.2kF.1.RData
-DN.adjustBeta.1.3.nI10000.nThin.1.index.14_33_Apr_17_2017.lof_DD.damaging_DD.nGroupDN.2.nGroupCC.2.adjustRatio.1.0.05.sigmaPrior.3.2kF.1.RData
-DN.adjustBeta.1.3.nI10000.nThin.1.index.14_33_Apr_17_2017.lof_EPI.damaging_EPI.nGroupDN.2.nGroupCC.2.adjustRatio.1.0.05.sigmaPrior.3.2kF.1.RData
-DN.adjustBeta.1.3.nI10000.nThin.1.index.14_33_Apr_17_2017.lof_ID.damaging_ID.nGroupDN.2.nGroupCC.2.adjustRatio.1.0.05.sigmaPrior.3.2kF.1.RData
-DN.adjustBeta.1.3.nI10000.nThin.1.index.14_33_Apr_17_2017.lof_SCZ.damaging_SCZ.nGroupDN.2.nGroupCC.2.adjustRatio.1.0.05.sigmaPrior.3.2kF.1.RData

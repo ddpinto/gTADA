@@ -1,5 +1,0 @@
-source("TADA.R")
-
-
-simulator.denovo(N = 184, mu = x1, mu.frac = 1, pi = 0.0170,
-                 gamma.mean = 63.8, beta = 1)
