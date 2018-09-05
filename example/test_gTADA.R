@@ -28,7 +28,7 @@ inputData <- data.frame(Gene = data[, 1], allMutData, allDNData)
 fmrp <- read.table("../data/FMRP_targets.txt")
 fmrp <- data.frame(V1 = fmrp[, 1], rep(1, dim(fmrp)[1]))
 
-f1 <- data.frame(Gene = data[, 1], V2 = rep(0, dim(data)[1]))
+f1 <- data.frame(Gene = data[, 1], fmrpGene = rep(0, dim(data)[1]))
 f1[is.element(f1[, 1], fmrp[, 1]), 2] <- 1
 
 fmrp <- f1 
@@ -61,3 +61,14 @@ head(mcmcDD$dataPP)
 #############################################
 ## Draw heatmap to check convergence
 plotParHeatmap(pars = c('alpha0[1]', 'alpha0[2]'), mcmcResult = mcmcDD$gTADAmcmc)
+
+
+##The section below is only for the comparison between extTADA/TADA and gTADA
+## if you want to see differences between extTADA and gTADA results
+data1 <- merge(data, mcmcDD$dataPP, by.x = 'geneName', by.y = 'Gene')
+data1 <- merge(data1, fmrp, by.x = 'geneName', by.y = 'Gene')
+data1[, 'fmrpGene'] <- as.factor(ifelse(data1$fmrpGene == 0, "No", "Yes"))
+
+library('ggplot2')
+p1 <- ggplot(data1, aes(PP.x, PP.y, col = fmrpGene)) + geom_point() +  xlab("extTADA's PP") + ylab("gTADA's PP") + geom_abline(slope = 1, intercept = 0)
+p1
