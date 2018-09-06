@@ -16,3 +16,15 @@ To run this package, packages below should be installed:
  . *locfit* (https://cran.r-project.org/web/packages/locfit/index.html)
 
 To run the package, please follow an example inside: /example/test_gTADA.R
+
+# Citation:
+*Prioritizing risk genes for neurodevelopmental disorders using pathway information*
+
+Hoang T. Nguyen, Amanda Dobbyn, Alex Charney, Julien Bryois, Nathan G. Skene, Laura M. Huckins, Weiqing Wang, 
+Douglas M Ruderfer, Xinyi Xu, Menachem Fromer, Shaun M Purcell, 
+Matthijs Verhage, August B. Smit, Jens Hjerling-Leffler, Joseph D. Buxbaum, 
+Dalila Pinto, Xin He, Patrick F Sullivan, Eli A. Stahl.
+
+Link: 
+
+
