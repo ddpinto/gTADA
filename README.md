@@ -16,7 +16,7 @@ To run this package, packages below should be installed:
 
  . *locfit* (https://cran.r-project.org/web/packages/locfit/index.html)
 
-To run the package, please follow an example inside: [./example/test_gTADA.R](example/test_gTADA)
+To run the package, please follow an example inside: [example/test_gTADA.R](https://github.com/hoangtn/gTADA/blob/master/example/test_gTADA.R)
 
 # Citation:
 *Prioritizing risk genes for neurodevelopmental disorders using pathway information*
