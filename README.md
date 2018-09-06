@@ -1,4 +1,5 @@
 # gTADA
+
 gTADA is a generalized version of extTADA. The package can be used to:
 
 1. Test gene-set enrichment directly from de novo data or rare case-control data.
@@ -15,7 +16,7 @@ To run this package, packages below should be installed:
 
  . *locfit* (https://cran.r-project.org/web/packages/locfit/index.html)
 
-To run the package, please follow an example inside: /example/test_gTADA.R
+To run the package, please follow an example inside: [example/test_gTADA.R](example/test_gTADA)
 
 # Citation:
 *Prioritizing risk genes for neurodevelopmental disorders using pathway information*
