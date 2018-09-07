@@ -72,3 +72,4 @@ data1[, 'fmrpGene'] <- as.factor(ifelse(data1$fmrpGene == 0, "No", "Yes"))
 library('ggplot2')
 p1 <- ggplot(data1, aes(PP.x, PP.y, col = fmrpGene)) + geom_point() +  xlab("extTADA's PP") + ylab("gTADA's PP") + geom_abline(slope = 1, intercept = 0)
 p1
+#save(mcmcDD, file = "mcmcDD_result.RData")
